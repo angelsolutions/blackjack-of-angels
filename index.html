@@ -1,0 +1,795 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Blackjack of Angels</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --felt:#0F5033;
+  --felt-dark:#0a3d27;
+  --felt-edge:#07301d;
+  --rail-dark:#2a1505;
+  --rail-mid:#3e1f07;
+  --gold:#c9a84c;
+  --gold-light:#e2c96a;
+  --gold-dim:#7a5e22;
+  --ivory:#faf6e8;
+  --red:#c0392b;
+  --font:'DM Sans',sans-serif;
+  --serif:'DM Serif Display',serif;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:#1a0a02;font-family:var(--font);color:var(--ivory)}
+
+/* ── FULL SCREEN LAYOUT ── */
+#app{width:100vw;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;position:relative}
+
+/* ── TABLE ── */
+#table-wrap{
+  position:relative;
+  width:100vw;
+  height:90vh;
+  flex-shrink:0;
+}
+
+/* Felt semicircle — fills bottom of screen */
+#felt{
+  position:absolute;
+  bottom:0;left:0;right:0;
+  height:100%;
+  background:var(--felt);
+  border-radius:50% 50% 0 0 / 100% 100% 0 0;
+  overflow:hidden;
+}
+#felt::before{
+  content:'';position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse 60% 50% at 50% 100%,rgba(0,0,0,0.35) 0%,transparent 70%),
+    radial-gradient(ellipse 80% 40% at 50% 20%,rgba(255,255,255,0.04) 0%,transparent 100%);
+}
+
+/* Rail — thick wooden border around the semicircle */
+#rail{
+  position:absolute;
+  bottom:0;left:0;right:0;height:100%;
+  border-radius:50% 50% 0 0 / 100% 100% 0 0;
+  border:18px solid var(--rail-mid);
+  border-bottom:none;
+  box-shadow:
+    inset 0 0 0 2px rgba(201,168,76,0.4),
+    inset 0 0 0 5px var(--rail-dark),
+    0 0 0 2px rgba(0,0,0,0.8),
+    0 -4px 20px rgba(0,0,0,0.6);
+  pointer-events:none;
+  z-index:10;
+}
+
+/* ── SVG TABLE GRAPHICS ── */
+#table-svg{
+  position:absolute;
+  bottom:0;left:0;
+  width:100%;height:100%;
+  pointer-events:none;
+  z-index:5;
+  overflow:visible;
+}
+
+/* ── DEALER PANEL ── */
+#dealer-area{
+  position:absolute;
+  bottom:5%;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:20;
+  background:rgba(8,40,22,0.85);
+  border:1px solid rgba(201,168,76,0.3);
+  border-radius:8px;
+  padding:10px 20px 14px;
+  min-width:220px;
+  display:flex;flex-direction:column;align-items:center;gap:6px;
+}
+#dealer-lbl{font-size:11px;letter-spacing:.25em;text-transform:uppercase;color:rgba(201,168,76,.6)}
+#dealer-cards{display:flex;gap:12px;align-items:flex-end;justify-content:center;min-height:180px}
+#dealer-score{font-family:var(--serif);font-size:24px;color:var(--gold);min-height:28px;text-align:center}
+#dealer-turn-btns{display:none;flex-direction:column;align-items:center;gap:5px}
+#dealer-turn-btns.show{display:flex}
+
+/* ── PLAYER SEATS ── */
+.seat{
+  position:absolute;
+  display:flex;flex-direction:column;align-items:center;gap:3px;
+  z-index:20;
+}
+.seat-name{
+  font-size:clamp(16px,1.8vw,24px);font-weight:600;
+  color:var(--gold-light);letter-spacing:.05em;
+  text-align:center;white-space:nowrap;
+  margin-bottom:4px;
+}
+.seat-cards{display:flex;gap:10px;align-items:flex-end;justify-content:center;min-height:160px;flex-wrap:nowrap}
+.seat-score{font-family:var(--serif);font-size:clamp(18px,2.2vw,28px);color:var(--ivory);min-height:28px;text-align:center}
+.seat-score.bust{color:#e74c3c}
+.seat-score.bj{color:var(--gold-light)}
+.seat-tag{font-size:9px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;padding:2px 10px;border:1px solid;min-height:16px}
+.tag-playing  {color:#f5a623;border-color:#f5a623}
+.tag-standing {color:#27ae60;border-color:#27ae60}
+.tag-busted   {color:#e74c3c;border-color:#e74c3c}
+.tag-blackjack{color:var(--gold-light);border-color:var(--gold-light)}
+.tag-waiting  {color:rgba(255,255,255,.3);border-color:rgba(255,255,255,.15)}
+.seat.active-turn{filter:drop-shadow(0 0 14px rgba(201,168,76,.55))}
+.seat.active-turn .seat-name{color:#fff}
+
+/* Action buttons — appear above/below active seat */
+.action-btns{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:5px}
+.abtn{
+  font-family:var(--font);font-size:clamp(11px,1vw,13px);font-weight:600;
+  letter-spacing:.04em;border:1.5px solid;padding:6px 14px;
+  cursor:pointer;border-radius:4px;transition:all .14s;
+  background:rgba(0,0,0,.5);white-space:nowrap;
+}
+.abtn.hit  {color:#4cde8a;border-color:#27ae60}.abtn.hit:hover{background:rgba(39,174,96,.25)}
+.abtn.stand{color:#fad04e;border-color:var(--gold-dim)}.abtn.stand:hover{background:rgba(201,168,76,.18)}
+.abtn.double{color:#a8d8ff;border-color:#2980b9}.abtn.double:hover{background:rgba(41,128,185,.2)}
+.abtn.split{color:#e8a4ff;border-color:#8e44ad}.abtn.split:hover{background:rgba(142,68,173,.2)}
+
+/* Split groups */
+.split-group{display:flex;flex-direction:column;align-items:center;gap:2px}
+.split-group-cards{display:flex;gap:4px}
+.split-lbl{font-size:9px;color:rgba(255,255,255,.4);letter-spacing:.1em;text-transform:uppercase}
+
+/* Seat result badge */
+.seat-result{font-family:var(--serif);font-size:clamp(16px,2vw,26px);font-weight:700;padding:3px 12px;border-radius:4px;display:none}
+.seat-result.show{display:block}
+.seat-result.win {color:#2ecc71;background:rgba(0,0,0,.55)}
+.seat-result.lose{color:#e74c3c;background:rgba(0,0,0,.55)}
+.seat-result.push{color:var(--gold);background:rgba(0,0,0,.55)}
+.seat-result.bj  {color:var(--gold-light);background:rgba(0,0,0,.55)}
+
+/* ── CARDS ── */
+.card{
+  background:#fff;border-radius:12px;border:1px solid #ccc;
+  box-shadow:2px 4px 14px rgba(0,0,0,.6),inset 0 1px 0 rgba(255,255,255,.9);
+  position:relative;font-family:var(--font);font-weight:700;color:#111;
+  overflow:hidden;flex-shrink:0;
+  animation:dealIn .25s cubic-bezier(.34,1.56,.64,1);
+  user-select:none;
+}
+@keyframes dealIn{from{opacity:0;transform:translateY(-22px) scale(.75) rotate(-5deg)}to{opacity:1;transform:none}}
+.card.lg{width:176px;height:248px}
+.card.md{width:144px;height:202px}
+.card.sm{width:116px;height:164px}
+.card.red-card{color:var(--red)}
+.card .corner{position:absolute;display:flex;flex-direction:column;align-items:center;line-height:1;gap:0}
+.card .corner.tl{top:8px;left:12px}
+.card .corner.br{bottom:8px;right:12px;transform:rotate(180deg)}
+.card .corner .rnk{font-size:28px;font-weight:800}
+.card .corner .sym{font-size:20px}
+.card.md .corner .rnk{font-size:24px}.card.md .corner .sym{font-size:18px}
+.card.sm .corner .rnk{font-size:20px}.card.sm .corner .sym{font-size:16px}
+.pip{line-height:1}
+
+/* Face down card */
+.card.face-down{
+  background:#1e3d9e;
+  background-image:
+    repeating-linear-gradient(45deg,rgba(255,255,255,.06) 0,rgba(255,255,255,.06) 3px,transparent 3px,transparent 10px),
+    repeating-linear-gradient(-45deg,rgba(255,255,255,.04) 0,rgba(255,255,255,.04) 3px,transparent 3px,transparent 10px);
+  border-color:#3355cc;
+}
+/* Angel logo on face-down card */
+.card.face-down::before{
+  content:'';
+  position:absolute;inset:12px;
+  border:1px solid rgba(255,255,255,.15);
+  border-radius:4px;
+}
+.card.face-down::after{
+  content:'';
+  position:absolute;inset:0;
+  display:flex;align-items:center;justify-content:center;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 134 116' fill='none'%3E%3Cpath d='M73.871 114.96C72.351 115.12 70.801 115.22 69.261 115.28C32.381 116.56 1.421 87.76.051 50.89C-.479 36.3 3.091 24.41 11.621 12.34L12.341 11.33C12.341 12.6 12.401 14.27 12.571 15.87C13.261 22.45 15.141 26.55 17.321 31.31C17.781 32.31 18.251 33.35 18.741 34.44C20.531 38.52 22.381 42.73 22.731 47.31C22.871 50.33 22.771 53.36 22.441 56.37C22.191 58.91 22.071 61.46 22.091 64.01C22.911 85.93 41.321 103.05 63.241 102.28C64.151 102.28 65.081 102.19 65.981 102.09C86.671 99.93 101.831 80.78 101.101 59.97C101.151 56.87 101.411 53.77 101.901 50.71C102.951 45.78 105.211 41.13 107.401 36.67C111.251 28.78 112.141 21.03 110.401 9.71C109.851 6.5 109.731 3.24 110.051 0L112.061 2.2C123.901 14.39 133.081 29.74 133.671 46.1C134.841 81.17 108.771 111.2 73.891 114.98L73.871 114.96ZM10.551 19.33L9.621 21.1C5.061 30.3 2.951 40.51 3.471 50.77C4.781 85.75 34.151 113.08 69.141 111.85C70.591 111.79 72.071 111.69 73.511 111.54C106.621 107.96 131.361 79.46 130.241 46.18C129.761 32.91 122.361 19.44 114.281 8.95L112.171 6.5L113.141 9.57C116.561 20.98 114.641 29.61 110.451 38.21C108.251 42.7 106.181 46.99 105.211 51.47C104.791 54.26 104.551 57.08 104.521 59.9C105.321 82.49 88.831 103.18 66.371 105.54C65.391 105.64 64.391 105.71 63.391 105.76C39.571 106.59 19.581 87.98 18.691 64.17C18.661 61.49 18.771 58.81 19.041 56.15C19.351 53.31 19.451 50.45 19.341 47.6C19.011 43.61 17.361 39.83 15.601 35.83C15.221 34.98 14.841 34.15 14.451 33.31C12.771 29.72 11.041 26.01 10.851 21.34L10.551 19.34V19.33Z' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M117.511 45.61C116.911 45.61 116.381 45.26 116.131 44.72C115.801 43.96 116.141 43.08 116.901 42.74C116.901 42.74 116.921 42.74 116.931 42.73C127.261 38.09 127.421 32.42 127.421 32.35C127.401 31.52 128.061 30.83 128.891 30.81C129.721 30.81 130.401 31.45 130.441 32.28C130.441 32.59 130.441 39.94 118.161 45.47C117.971 45.56 117.761 45.6 117.551 45.61H117.521H117.511Z' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M117.151 58.45C116.321 58.45 115.641 57.79 115.631 56.95C115.631 56.22 116.151 55.58 116.871 55.45C127.361 53.49 130.321 45.52 130.441 45.19C130.721 44.4 131.581 43.99 132.361 44.26C133.151 44.54 133.561 45.4 133.291 46.18C133.151 46.59 129.691 56.12 117.431 58.42H117.151V58.44V58.45Z' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M116.231 71.59C115.401 71.59 114.721 70.91 114.721 70.08C114.721 69.25 115.401 68.57 116.231 68.57C127.501 68.47 129.401 58.99 129.481 58.55C129.631 57.73 130.421 57.19 131.241 57.34C132.061 57.49 132.601 58.28 132.451 59.1C132.451 59.22 129.981 71.44 116.261 71.58H116.231V71.59Z' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M10.751 47.59C10.421 47.59 10.101 47.48 9.831 47.28C2.051 41.3 1.661 34.81 1.651 34.51C1.651 33.68 2.321 33 3.151 33C3.931 33 4.581 33.58 4.661 34.35C4.661 34.59 5.091 39.8 11.671 44.86C12.331 45.37 12.461 46.31 11.951 46.98C11.661 47.35 11.221 47.57 10.751 47.57V47.59Z' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M9.021 56.05C8.811 56.05 8.601 56.01 8.411 55.92C-.289 52.03.291 44.62.321 44.3C.441 43.47 1.201 42.9 2.021 43.02C2.791 43.13 3.351 43.8 3.321 44.57C3.321 44.83 2.981 50.16 9.631 53.15C10.391 53.49 10.741 54.38 10.401 55.14C10.161 55.69 9.611 56.04 9.011 56.04' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M7.461 65.51C7.371 65.51 7.271 65.51 7.181 65.51C.701 64.3.181 54.78.181 54.39C.101 53.56.701 52.82 1.531 52.74C2.361 52.66 3.101 53.26 3.181 54.09C3.181 54.15 3.181 54.21 3.181 54.27C3.181 54.34 3.641 61.8 7.711 62.54C8.531 62.69 9.071 63.47 8.931 64.29C8.801 65.01 8.171 65.53 7.441 65.53H7.461V65.51Z' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M112.791 85.2H112.441C111.611 85.14 110.981 84.42 111.041 83.59C111.101 82.84 111.691 82.25 112.441 82.19C123.531 82.33 125.111 74.21 125.211 73.88C125.391 73.07 126.201 72.56 127.021 72.74C127.771 72.91 128.271 73.62 128.181 74.39C128.181 74.49 126.201 85.21 112.781 85.21L112.791 85.2Z' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M54.691 94.68L54.421 94.63L54.161 94.57L53.891 94.51L53.631 94.43C52.181 93.97 50.891 93.12 49.901 91.96C48.811 90.68 47.981 89.2 47.471 87.6C46.871 85.78 46.551 83.87 46.521 81.96C46.481 79.83 46.721 77.7 47.251 75.64C47.731 73.71 48.471 71.86 49.431 70.12C50.281 68.57 51.361 67.15 52.621 65.91C53.731 64.82 55.031 63.96 56.471 63.36C57.771 62.82 59.181 62.63 60.571 62.81L60.831 62.85L61.101 62.91L61.361 62.97L61.621 63.04C63.071 63.48 64.371 64.33 65.371 65.47C66.481 66.74 67.321 68.23 67.841 69.84C68.451 71.67 68.781 73.58 68.811 75.52C68.861 77.67 68.611 79.82 68.071 81.91C67.581 83.85 66.841 85.71 65.861 87.46C65.011 89.01 63.941 90.43 62.671 91.67C61.551 92.75 60.241 93.6 58.811 94.18C57.511 94.71 56.101 94.88 54.711 94.69M61.041 59.43C59.271 59.2 57.481 59.42 55.821 60.06C54.021 60.75 52.381 61.78 50.981 63.1C49.401 64.56 48.051 66.26 46.991 68.14C45.791 70.22 44.891 72.45 44.321 74.77C43.681 77.27 43.421 79.86 43.521 82.44C43.601 84.79 44.051 87.1 44.841 89.31C45.541 91.29 46.631 93.1 48.031 94.66C49.321 96.09 50.981 97.16 52.821 97.74L53.181 97.84L53.551 97.94L53.911 98.01L54.281 98.07C56.041 98.32 57.831 98.13 59.501 97.52C61.311 96.85 62.971 95.84 64.381 94.53C65.981 93.07 67.351 91.37 68.431 89.49C69.651 87.4 70.561 85.15 71.151 82.8C71.811 80.27 72.091 77.67 72.001 75.06C71.911 72.69 71.451 70.35 70.641 68.12C69.921 66.13 68.821 64.31 67.381 62.76C66.061 61.33 64.381 60.29 62.521 59.73L62.161 59.63L61.791 59.54L61.421 59.47L61.051 59.41' fill='rgba(255,255,255,0.22)'/%3E%3Cpath d='M71.091 54.7C70.551 54.63 70.001 54.54 69.431 54.44C68.861 54.34 68.301 54.23 67.711 54.1C67.131 53.97 66.541 53.84 65.941 53.68C65.341 53.52 64.731 53.36 64.111 53.19C62.361 52.68 60.631 52.09 58.941 51.4C57.631 50.87 56.351 50.26 55.121 49.58C54.231 49.09 53.371 48.54 52.561 47.94C52.051 47.57 51.581 47.14 51.161 46.67L50.671 46.08L51.371 45.84C51.731 45.72 52.101 45.63 52.481 45.58C53.011 45.5 53.541 45.45 54.081 45.43H56.191C56.971 45.43 57.791 45.54 58.761 45.67C59.301 45.74 59.851 45.82 60.411 45.92C60.971 46.02 61.541 46.13 62.121 46.26C62.691 46.39 63.291 46.52 63.881 46.67C64.471 46.82 65.091 46.98 65.701 47.15C67.471 47.65 69.201 48.25 70.901 48.94C72.221 49.47 73.521 50.09 74.771 50.77C75.681 51.26 76.551 51.82 77.371 52.44C77.891 52.82 78.371 53.25 78.801 53.73L79.291 54.33L78.581 54.58C78.211 54.69 77.831 54.78 77.451 54.84C76.901 54.92 76.361 54.97 75.811 54.99H73.671C72.871 54.99 72.011 54.87 71.071 54.74M59.031 42.33C57.841 42.17 56.641 42.07 55.441 42.04C54.291 42 53.141 42.08 52.001 42.26C51.041 42.39 50.111 42.72 49.291 43.23C48.551 43.7 48.021 44.43 47.811 45.27C47.541 46.56 47.901 47.9 48.791 48.87C49.881 50.16 51.201 51.24 52.671 52.06C54.371 53.07 56.151 53.95 57.991 54.69C59.731 55.39 61.501 56.01 63.301 56.53C63.941 56.71 64.581 56.89 65.211 57.04C65.841 57.19 66.461 57.35 67.081 57.48C67.691 57.61 68.321 57.74 68.921 57.85C69.531 57.96 70.131 58.05 70.721 58.13L71.921 58.27L73.081 58.37C73.461 58.37 73.821 58.42 74.181 58.43C74.541 58.43 74.891 58.43 75.231 58.43C76.161 58.43 77.081 58.36 78.001 58.21C78.721 58.1 79.431 57.89 80.101 57.59C80.641 57.35 81.131 57.01 81.531 56.58C81.901 56.18 82.161 55.69 82.291 55.17C82.561 53.86 82.181 52.5 81.271 51.52C80.131 50.24 78.781 49.16 77.281 48.33C75.551 47.32 73.741 46.44 71.881 45.7C70.001 44.95 68.141 44.33 66.541 43.86L65.611 43.62C65.161 43.5 64.581 43.36 63.911 43.2C63.241 43.04 62.471 42.89 61.651 42.74C60.831 42.59 59.941 42.44 59.041 42.32' fill='rgba(255,255,255,0.22)'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;
+  background-position:center;
+  background-size:55%;
+}
+
+/* Court cards */
+.court-big{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-weight:800;font-family:var(--serif);opacity:.9}
+.card.lg .court-big{font-size:84px}
+.card.md .court-big{font-size:68px}
+.card.sm .court-big{font-size:52px}
+.court-suit-bg{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.12;pointer-events:none}
+.card.lg .court-suit-bg{font-size:112px}
+.card.md .court-suit-bg{font-size:88px}
+.card.sm .court-suit-bg{font-size:68px}
+
+/* ── DEALER MENU ── */
+#dmenu-wrap{position:fixed;top:16px;right:16px;z-index:500}
+#dmenu-btn{
+  background:rgba(18,8,2,.88);border:1px solid var(--gold-dim);color:var(--gold);
+  font-family:var(--font);font-size:13px;font-weight:600;padding:8px 16px;
+  border-radius:6px;cursor:pointer;letter-spacing:.06em;
+  display:flex;align-items:center;gap:7px;transition:background .15s;
+}
+#dmenu-btn:hover{background:rgba(40,20,5,.97)}
+#dmenu-btn .arr{font-size:10px;transition:transform .2s}
+#dmenu-btn.open .arr{transform:rotate(180deg)}
+#dmenu-dd{
+  position:absolute;top:calc(100% + 6px);right:0;
+  background:rgba(18,8,2,.97);border:1px solid var(--gold-dim);
+  border-radius:6px;overflow:hidden;display:none;min-width:180px;
+  box-shadow:0 8px 24px rgba(0,0,0,.7);
+}
+#dmenu-dd.open{display:block}
+.dmi{
+  padding:11px 16px;font-size:13px;font-weight:500;color:var(--ivory);
+  cursor:pointer;border-bottom:1px solid rgba(201,168,76,.1);
+  transition:background .12s;display:flex;align-items:center;gap:10px;white-space:nowrap;
+}
+.dmi:last-child{border-bottom:none}
+.dmi:hover{background:rgba(201,168,76,.12);color:var(--gold-light)}
+
+/* ── MODALS ── */
+.modal-bg{position:fixed;inset:0;background:rgba(4,16,8,.94);display:flex;align-items:center;justify-content:center;z-index:1000;backdrop-filter:blur(4px)}
+.modal-bg.hidden{display:none}
+.modal{
+  background:linear-gradient(150deg,#0d2b18,#081910);
+  border:1px solid var(--gold-dim);border-radius:12px;
+  padding:38px 46px;max-width:500px;width:92%;
+  box-shadow:0 24px 60px rgba(0,0,0,.75);
+}
+.modal h1{font-family:var(--serif);font-style:italic;font-size:2rem;color:var(--gold-light);margin-bottom:6px}
+.modal h2{font-family:var(--serif);font-style:italic;font-size:1.6rem;color:var(--gold-light);margin-bottom:20px}
+.modal .sub{color:rgba(255,255,255,.4);font-size:.9rem;margin-bottom:26px}
+.modal .frow{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.modal .fnum{font-family:var(--serif);color:var(--gold-dim);font-size:1rem;width:22px;text-align:right;flex-shrink:0}
+.modal input[type=text]{
+  flex:1;background:rgba(255,255,255,.05);border:1px solid rgba(201,168,76,.3);
+  border-radius:4px;color:var(--ivory);padding:9px 13px;
+  font-family:var(--font);font-size:1rem;outline:none;transition:border-color .2s;
+}
+.modal input[type=text]:focus{border-color:var(--gold)}
+.modal input[type=text]::placeholder{color:rgba(255,255,255,.2)}
+.modal .mactions{display:flex;gap:10px;margin-top:26px;justify-content:flex-end}
+.btn-primary{font-family:var(--font);font-weight:600;font-size:14px;background:var(--gold);color:#1a0c00;border:none;border-radius:4px;padding:10px 28px;cursor:pointer;transition:background .15s}
+.btn-primary:hover{background:var(--gold-light)}
+.btn-ghost{font-family:var(--font);font-weight:500;font-size:14px;background:transparent;color:rgba(255,255,255,.5);border:1px solid rgba(255,255,255,.15);border-radius:4px;padding:10px 20px;cursor:pointer;transition:all .15s}
+.btn-ghost:hover{color:var(--ivory);border-color:rgba(255,255,255,.35)}
+.mnote{font-size:.8rem;color:rgba(255,255,255,.3);margin-top:12px;text-align:center;font-style:italic}
+
+/* Results modal */
+#results-modal .modal{max-width:560px}
+.res-dealer{background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.15);border-radius:6px;padding:10px 16px;font-size:.95rem;color:rgba(255,255,255,.7);margin-bottom:18px}
+.res-dealer strong{color:var(--ivory)}
+.res-table{width:100%;border-collapse:collapse;margin-bottom:6px}
+.res-table th{font-size:9px;font-weight:600;letter-spacing:.18em;text-transform:uppercase;color:var(--gold-dim);padding:0 6px 10px;text-align:left}
+.res-table th:last-child{text-align:right}
+.res-table td{padding:9px 6px;border-top:1px solid rgba(255,255,255,.06);font-size:.95rem}
+.res-table td:last-child{text-align:right;font-weight:700}
+.r-win{color:#27ae60}.r-lose{color:#e74c3c}.r-push{color:var(--gold)}.r-bj{color:var(--gold-light)}
+
+/* Bet chips */
+.chip-area{display:flex;gap:4px;justify-content:center;align-items:center;margin-top:4px;min-height:40px}
+.chip{
+  width:38px;height:38px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#d4a853,#8a6420 70%,#5a3e10);
+  border:2.5px dashed rgba(255,255,255,.35);
+  box-shadow:0 2px 6px rgba(0,0,0,.5),inset 0 1px 2px rgba(255,255,255,.3);
+  display:flex;align-items:center;justify-content:center;
+  animation:chipIn .3s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes chipIn{from{opacity:0;transform:scale(.4) translateY(-10px)}to{opacity:1;transform:none}}
+.chip svg{width:22px;height:22px}
+
+/* Toast */
+#toast{
+  position:fixed;bottom:28px;left:50%;transform:translateX(-50%);
+  background:rgba(10,28,14,.97);border:1px solid var(--gold-dim);color:var(--gold-light);
+  padding:9px 22px;border-radius:6px;font-size:13px;font-weight:500;letter-spacing:.04em;
+  pointer-events:none;opacity:0;transition:opacity .3s;z-index:2000;white-space:nowrap;
+}
+#toast.show{opacity:1}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <div id="table-wrap">
+    <div id="felt"></div>
+    <div id="rail"></div>
+
+    <!-- SVG: inner arc lines + curved text + motifs — rendered into a viewBox that matches table proportions -->
+    <svg id="table-svg" xmlns="http://www.w3.org/2000/svg" preserveAspectRatio="xMidYMax meet"></svg>
+
+    <!-- Dealer panel inside felt -->
+    <div id="dealer-area">
+      <div id="dealer-lbl">Dealer</div>
+      <div id="dealer-cards"></div>
+      <div id="dealer-score"></div>
+      <div id="dealer-turn-btns">
+        <div style="font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:rgba(201,168,76,.6)">Dealer's Turn</div>
+        <div class="action-btns">
+          <button class="abtn hit" onclick="dealerHit()">Hit</button>
+          <button class="abtn stand" onclick="dealerStand()">Stand</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Player seats injected by JS -->
+  </div>
+</div>
+
+<!-- Dealer menu -->
+<div id="dmenu-wrap">
+  <button id="dmenu-btn" onclick="toggleMenu()">⚙ Dealer <span class="arr">▾</span></button>
+  <div id="dmenu-dd">
+    <div class="dmi" id="dmi-deal" onclick="menuDeal()"><span>🃏</span> <span id="dmi-deal-lbl">Deal</span></div>
+    <div class="dmi" id="dmi-res"  onclick="menuResults()"><span>📋</span> Show Results</div>
+    <div class="dmi" onclick="menuEdit()"><span>✏️</span> Edit Players</div>
+  </div>
+</div>
+
+<!-- Setup modal -->
+<div class="modal-bg" id="setup-modal">
+  <div class="modal">
+    <h1>Blackjack of Angels</h1>
+    <p class="sub">Enter the names of up to 4 players</p>
+    <div class="frow"><span class="fnum">1</span><input type="text" id="n0" placeholder="Player 1" maxlength="14" autocomplete="off"></div>
+    <div class="frow"><span class="fnum">2</span><input type="text" id="n1" placeholder="Player 2 (optional)" maxlength="14" autocomplete="off"></div>
+    <div class="frow"><span class="fnum">3</span><input type="text" id="n2" placeholder="Player 3 (optional)" maxlength="14" autocomplete="off"></div>
+    <div class="frow"><span class="fnum">4</span><input type="text" id="n3" placeholder="Player 4 (optional)" maxlength="14" autocomplete="off"></div>
+    <div class="mactions"><button class="btn-primary" onclick="startSession()">Take Your Seats →</button></div>
+    <p class="mnote">At least 1 player required</p>
+  </div>
+</div>
+
+<!-- Results modal -->
+<div class="modal-bg hidden" id="results-modal">
+  <div class="modal">
+    <h2>Round Results</h2>
+    <div class="res-dealer" id="res-dealer-bar"></div>
+    <table class="res-table">
+      <thead><tr><th>Player</th><th>Cards</th><th>Score</th><th>Result</th></tr></thead>
+      <tbody id="res-tbody"></tbody>
+    </table>
+    <div class="mactions">
+      <button class="btn-ghost" onclick="menuEdit()">Change Players</button>
+      <button class="btn-primary" onclick="newRound()">New Round</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ══ PIP LAYOUTS ════════════════════════════════════════════════
+   [row 0-6, col 0-2] on a 3×7 grid
+   ══════════════════════════════════════════════════════════════ */
+const PIPS={
+  '2':[[1,1],[5,1]],
+  '3':[[1,1],[3,1],[5,1]],
+  '4':[[1,0],[1,2],[5,0],[5,2]],
+  '5':[[1,0],[1,2],[3,1],[5,0],[5,2]],
+  '6':[[1,0],[1,2],[3,0],[3,2],[5,0],[5,2]],
+  '7':[[1,0],[1,2],[2,1],[3,0],[3,2],[5,0],[5,2]],
+  '8':[[1,0],[1,2],[2,1],[3,0],[3,2],[4,1],[5,0],[5,2]],
+  '9':[[1,0],[1,2],[2,0],[2,2],[3,1],[4,0],[4,2],[5,0],[5,2]],
+  '10':[[1,0],[1,2],[2,0],[2,2],[3,0],[3,2],[4,0],[4,2],[5,0],[5,2]],
+  'J':null,'Q':null,'K':null,'A':null
+};
+const SUITS=['♠','♥','♦','♣'];
+const RANKS=['A','2','3','4','5','6','7','8','9','10','J','Q','K'];
+const RED=new Set(['♥','♦']);
+
+/* ══ DECK ══════════════════════════════════════════════════════ */
+function mkDeck(){
+  const d=[];for(const s of SUITS)for(const r of RANKS)d.push({r,s});
+  for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];}
+  return d;
+}
+function draw(){return deck.pop();}
+function hv(hand){
+  if(!hand)return 0;let v=0,a=0;
+  for(const c of hand){
+    if(c.hidden)continue;
+    if(c.r==='A'){a++;v+=11;}else if('JQK'.includes(c.r))v+=10;else v+=parseInt(c.r);
+  }
+  while(v>21&&a){v-=10;a--;}return v;
+}
+function isBJ(h){return h&&h.length===2&&hv(h)===21;}
+function nv(r){if(r==='A')return 11;if('JQK'.includes(r))return 10;return parseInt(r);}
+function canSplit(p){return p.hand&&p.hand.length===2&&!p.hand2&&nv(p.hand[0].r)===nv(p.hand[1].r);}
+function canDbl(p){const h=p.activeHand===2?p.hand2:p.hand;return h&&h.length===2;}
+
+/* ══ STATE ═════════════════════════════════════════════════════ */
+let players=[],dealer={hand:[],revealed:false},deck=[],phase='setup',cur=0,rigNext=false;
+
+/* ══ SESSION ═══════════════════════════════════════════════════ */
+function startSession(){
+  const names=[0,1,2,3].map(i=>document.getElementById('n'+i).value.trim()).filter(Boolean);
+  if(!names.length){toast('Enter at least one player name');return;}
+  players=names.map(n=>({name:n,hand:null,hand2:null,status:'waiting',activeHand:1,doubled:false,hasSplit:false}));
+  document.getElementById('setup-modal').classList.add('hidden');
+  phase='lobby';rigNext=true;
+  buildSeats();drawTableSVG();renderAll();
+  dealRound();
+}
+function menuEdit(){
+  closeMenu();
+  document.getElementById('results-modal').classList.add('hidden');
+  players.forEach((p,i)=>{const el=document.getElementById('n'+i);if(el)el.value=p.name;});
+  for(let i=players.length;i<4;i++){const el=document.getElementById('n'+i);if(el)el.value='';}
+  document.getElementById('setup-modal').classList.remove('hidden');
+}
+function menuDeal(){closeMenu();if(phase==='playing'||phase==='dealer_turn'){if(!confirm('Abandon current round?'))return;}newRound();}
+function menuResults(){closeMenu();if(phase==='done'||phase==='dealer_turn')showResults();else toast('Round not finished yet');}
+
+/* ══ ROUND ═════════════════════════════════════════════════════ */
+function newRound(){
+  document.getElementById('results-modal').classList.add('hidden');
+  players.forEach(p=>{p.hand=null;p.hand2=null;p.status='waiting';p.activeHand=1;p.doubled=false;p.hasSplit=false;});
+  dealer={hand:[],revealed:false};deck=[];phase='lobby';cur=0;
+  clearResults();renderAll();dealRound();
+}
+function dealRound(){
+  if(!players.length)return;
+  deck=mkDeck();
+  if(rigNext){
+    rigNext=false;
+    const rm=(r,s)=>{const i=deck.findIndex(c=>c.r===r&&c.s===s);return i>=0?deck.splice(i,1)[0]:null;};
+    const six=rm('6','♣')||rm('6','♠')||rm('6','♥')||rm('6','♦');
+    const seven=rm('7','♣')||rm('7','♠')||rm('7','♥')||rm('7','♦');
+    const four=rm('4','♦')||rm('4','♣')||rm('4','♠')||rm('4','♥');
+    dealer.hand=[six,{...draw(),hidden:true}];
+    players.forEach((p,i)=>{
+      p.hand=i===0?[seven,four]:[draw(),draw()];
+      p.hand2=null;p.activeHand=1;p.doubled=false;p.hasSplit=false;
+      p.status=isBJ(p.hand)?'blackjack':'playing';
+    });
+  } else {
+    dealer.hand=[draw(),{...draw(),hidden:true}];
+    players.forEach(p=>{p.hand=[draw(),draw()];p.hand2=null;p.activeHand=1;p.doubled=false;p.hasSplit=false;p.status=isBJ(p.hand)?'blackjack':'playing';});
+  }
+  phase='playing';cur=0;
+  while(cur<players.length&&players[cur].status==='blackjack')cur++;
+  if(cur>=players.length)gotoDealer();else renderAll();
+}
+
+/* ══ PLAYER ACTIONS ════════════════════════════════════════════ */
+function cp(){return players[cur];}
+function doHit(){
+  const p=cp();if(!p||phase!=='playing')return;
+  const c=draw();
+  if(p.activeHand===2){p.hand2.push(c);if(hv(p.hand2)>21)finishHand();}
+  else{p.hand.push(c);if(hv(p.hand)>21)finishHand();}
+  renderAll();
+}
+function doStand(){
+  const p=cp();if(!p||phase!=='playing')return;
+  if(p.activeHand===1&&p.hand2){p.activeHand=2;renderAll();return;}
+  finishHand();
+}
+function doDouble(){
+  const p=cp();if(!p||phase!=='playing'||!canDbl(p))return;
+  p.doubled=true;
+  const c=draw();if(p.activeHand===2)p.hand2.push(c);else p.hand.push(c);
+  finishHand();renderAll();
+}
+function doSplit(){
+  const p=cp();if(!p||phase!=='playing'||!canSplit(p))return;
+  p.hasSplit=true;
+  p.hand2=[p.hand.pop(),draw()];p.hand.push(draw());p.activeHand=1;p.status='split_playing';
+  renderAll();toast(p.name+' splits!');
+}
+function finishHand(){
+  const p=cp();if(!p)return;
+  if(p.activeHand===1&&p.hand2){p.activeHand=2;renderAll();return;}
+  const b1=hv(p.hand)>21,b2=p.hand2?hv(p.hand2)>21:true;
+  p.status=(b1&&b2)?'busted':p.hand2?'standing':b1?'busted':'standing';
+  cur++;
+  while(cur<players.length&&players[cur].status==='blackjack')cur++;
+  if(cur>=players.length)gotoDealer();else renderAll();
+}
+
+/* ══ DEALER TURN ═══════════════════════════════════════════════ */
+function gotoDealer(){
+  phase='dealer_turn';
+  dealer.hand=dealer.hand.map(c=>({...c,hidden:false}));dealer.revealed=true;
+  renderAll();toast("All players done — dealer's turn");
+}
+function dealerHit(){
+  if(phase!=='dealer_turn')return;
+  dealer.hand.push(draw());
+  if(hv(dealer.hand)>=17){dealerDone();return;}
+  renderAll();
+}
+function dealerStand(){if(phase!=='dealer_turn')return;dealerDone();}
+function dealerDone(){phase='done';renderAll();setTimeout(showResults,700);}
+
+/* ══ RESULTS ═══════════════════════════════════════════════════ */
+function showResults(){
+  const dv=hv(dealer.hand),dBust=dv>21;
+  document.getElementById('res-dealer-bar').innerHTML=`<strong>Dealer:</strong> ${htxt(dealer.hand)} = ${dv}${dBust?' — Bust':''}`;
+  const tb=document.getElementById('res-tbody');tb.innerHTML='';
+  players.forEach((p,pi)=>{
+    const hands=p.hand2?[[p.hand,'H1'],[p.hand2,'H2']]:[[p.hand,null]];
+    hands.forEach(([h,lbl],hi)=>{
+      const v=hv(h),bust=v>21;
+      let res,cls;
+      if(p.status==='blackjack'&&!lbl){res='Blackjack';cls='r-bj';}
+      else if(bust){res='Bust';cls='r-lose';}
+      else if(dBust){res='Win';cls='r-win';}
+      else if(v>dv){res='Win';cls='r-win';}
+      else if(v===dv){res='Push';cls='r-push';}
+      else{res='Lose';cls='r-lose';}
+      if(hi===0){const sr=document.getElementById('result-'+pi);if(sr){const rc=res==='Win'||res==='Blackjack'?'win':res==='Push'?'push':'lose';sr.className='seat-result show '+rc;sr.textContent=res==='Blackjack'?'★ BJ':res;}}
+      const tr=document.createElement('tr');
+      tr.innerHTML=`<td>${p.name}${lbl?` <span style="color:rgba(255,255,255,.35);font-size:.8rem">(${lbl})</span>`:''}</td><td style="color:rgba(255,255,255,.45);font-size:.85rem">${htxt(h)}</td><td>${v}</td><td class="${cls}">${res}</td>`;
+      tb.appendChild(tr);
+    });
+  });
+  document.getElementById('results-modal').classList.remove('hidden');
+}
+function clearResults(){players.forEach((_,i)=>{const r=document.getElementById('result-'+i);if(r)r.className='seat-result';});}
+function htxt(h){return(h||[]).map(c=>c.hidden?'?':c.r+c.s).join(' ');}
+
+/* ══ BUILD SEATS ═══════════════════════════════════════════════ */
+function buildSeats(){
+  document.querySelectorAll('.seat').forEach(s=>s.remove());
+  const wrap=document.getElementById('table-wrap');
+  const W=wrap.offsetWidth,H=wrap.offsetHeight;
+  // Arc: cx=centre bottom, sweep players along upper arc
+  const cx=W/2,cy=H;
+  const rx=W*0.40,ry=H*0.72;
+  const pos={1:[.5],2:[.27,.73],3:[.19,.5,.81],4:[.14,.35,.65,.86]};
+  const pts=pos[Math.min(players.length,4)];
+  players.forEach((p,i)=>{
+    const t=pts[i]*Math.PI;
+    const sx=cx-rx*Math.cos(t),sy=cy-ry*Math.sin(t);
+    const seat=document.createElement('div');
+    seat.className='seat';seat.id='seat-'+i;
+    seat.style.cssText=`left:${sx}px;top:${sy}px;transform:translate(-50%,-82%)`;
+    seat.innerHTML=`
+      <div class="seat-name">${p.name}</div>
+      <div class="seat-cards" id="sc-${i}"></div>
+      <div class="seat-score" id="ss-${i}"></div>
+      <div class="chip-area" id="chips-${i}"></div>
+      <div class="seat-tag tag-waiting" id="st-${i}">Waiting</div>
+      <div class="action-btns" id="sa-${i}" style="margin-top:5px"></div>
+      <div class="seat-result" id="result-${i}"></div>`;
+    wrap.appendChild(seat);
+  });
+}
+
+/* ══ DRAW TABLE SVG ════════════════════════════════════════════ */
+function drawTableSVG(){
+  const wrap=document.getElementById('table-wrap');
+  const W=wrap.offsetWidth,H=wrap.offsetHeight;
+  const svg=document.getElementById('table-svg');
+  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.setAttribute('width',W);
+  svg.setAttribute('height',H);
+
+  // Arc centre at bottom-centre, radii to put text ~55% up
+  const cx=W/2,cy=H;
+  // Main text arc: ~55% of height from bottom → ry such that arc top = H*0.45
+  const titleRy=H*0.58,titleRx=W*0.44;
+  // Subtitle arc slightly inside
+  const subRy=H*0.48,subRx=W*0.38;
+  // Two gold arc lines
+  const outerRy=H*0.65,outerRx=W*0.47;
+  const innerRy=H*0.52,innerRx=W*0.40;
+
+  // Compute arc endpoints (sweep from left to right at y=cy)
+  function arcPath(rx,ry,gap=0){
+    const startX=cx-rx+gap,endX=cx+rx-gap;
+    const startY=cy,endY=cy;
+    return `M ${startX} ${startY} A ${rx} ${ry} 0 0 1 ${endX} ${endY}`;
+  }
+
+  // Motif positions — on the outer arc at ~25% and ~75%
+  function arcPoint(rx,ry,frac){
+    const t=frac*Math.PI;
+    return {x:cx-rx*Math.cos(t),y:cy-ry*Math.sin(t)};
+  }
+  const mL=arcPoint(outerRx*0.92,outerRy*0.92,.24);
+  const mR=arcPoint(outerRx*0.92,outerRy*0.92,.76);
+
+  const titleId='arc-title-'+Date.now();
+  const subId='arc-sub-'+Date.now();
+
+  svg.innerHTML=`
+    <defs>
+      <path id="${titleId}" d="${arcPath(titleRx,titleRy,0)}" />
+      <path id="${subId}"   d="${arcPath(subRx,subRy,0)}" />
+    </defs>
+
+    <!-- Gold arc lines -->
+    <path d="${arcPath(outerRx,outerRy,10)}" fill="none" stroke="rgba(201,168,76,0.28)" stroke-width="1"/>
+    <path d="${arcPath(innerRx,innerRy,10)}" fill="none" stroke="rgba(201,168,76,0.18)" stroke-width="1"/>
+
+    <!-- Main italic curved title -->
+    <text font-family="DM Serif Display, serif" font-style="italic" font-size="${Math.round(W*0.028)}">
+      <textPath href="#${titleId}" startOffset="50%" text-anchor="middle" fill="#e2c96a" letter-spacing="1.5">Blackjack of Angels. Double Down?</textPath>
+    </text>
+
+    <!-- Subtitle -->
+    <text font-family="DM Sans, sans-serif" font-size="${Math.round(W*0.013)}" fill="rgba(201,168,76,0.6)" letter-spacing="3">
+      <textPath href="#${subId}" startOffset="50%" text-anchor="middle">DEALER MUST STAND ON 17</textPath>
+    </text>
+
+    <!-- Left motif: crescent + feather wings -->
+    <g transform="translate(${mL.x},${mL.y})">
+      <text font-size="22" fill="rgba(201,168,76,0.5)" font-family="serif" text-anchor="middle" dominant-baseline="middle" transform="rotate(-40)">☽</text>
+      <text font-size="13" fill="rgba(201,168,76,0.35)" font-family="serif" text-anchor="middle" dominant-baseline="middle" dy="18" transform="rotate(-40)">✦</text>
+    </g>
+    <!-- Left wing sweep -->
+    <path d="M ${mL.x-28},${mL.y+18} Q ${mL.x-8},${mL.y+4} ${mL.x+14},${mL.y+14} Q ${mL.x},${mL.y+22} ${mL.x-24},${mL.y+28} Z"
+      fill="rgba(201,168,76,0.2)" transform="rotate(-20,${mL.x},${mL.y})"/>
+    <path d="M ${mL.x-20},${mL.y+30} Q ${mL.x+4},${mL.y+14} ${mL.x+18},${mL.y+26} Q ${mL.x+2},${mL.y+36} ${mL.x-18},${mL.y+40} Z"
+      fill="rgba(201,168,76,0.14)" transform="rotate(-20,${mL.x},${mL.y})"/>
+
+    <!-- Right motif -->
+    <g transform="translate(${mR.x},${mR.y})">
+      <text font-size="22" fill="rgba(201,168,76,0.5)" font-family="serif" text-anchor="middle" dominant-baseline="middle" transform="rotate(40)">☾</text>
+      <text font-size="13" fill="rgba(201,168,76,0.35)" font-family="serif" text-anchor="middle" dominant-baseline="middle" dy="18" transform="rotate(40)">✦</text>
+    </g>
+    <!-- Right wing sweep -->
+    <path d="M ${mR.x+28},${mR.y+18} Q ${mR.x+8},${mR.y+4} ${mR.x-14},${mR.y+14} Q ${mR.x},${mR.y+22} ${mR.x+24},${mR.y+28} Z"
+      fill="rgba(201,168,76,0.2)" transform="rotate(20,${mR.x},${mR.y})"/>
+    <path d="M ${mR.x+20},${mR.y+30} Q ${mR.x-4},${mR.y+14} ${mR.x-18},${mR.y+26} Q ${mR.x-2},${mR.y+36} ${mR.x+18},${mR.y+40} Z"
+      fill="rgba(201,168,76,0.14)" transform="rotate(20,${mR.x},${mR.y})"/>
+
+    <!-- Large angel logo watermark in lower felt -->
+    <g opacity="0.06" transform="translate(${cx-100},${cy*0.82-90}) scale(1.5)">
+      <svg viewBox="0 0 134 116" width="134" height="116">
+        <path d="M73.871 114.96C72.351 115.12 70.801 115.22 69.261 115.28C32.381 116.56 1.421 87.76.051 50.89C-.479 36.3 3.091 24.41 11.621 12.34L12.341 11.33C12.341 12.6 12.401 14.27 12.571 15.87C13.261 22.45 15.141 26.55 17.321 31.31C17.781 32.31 18.251 33.35 18.741 34.44C20.531 38.52 22.381 42.73 22.731 47.31C22.871 50.33 22.771 53.36 22.441 56.37C22.191 58.91 22.071 61.46 22.091 64.01C22.911 85.93 41.321 103.05 63.241 102.28C64.151 102.28 65.081 102.19 65.981 102.09C86.671 99.93 101.831 80.78 101.101 59.97C101.151 56.87 101.411 53.77 101.901 50.71C102.951 45.78 105.211 41.13 107.401 36.67C111.251 28.78 112.141 21.03 110.401 9.71C109.851 6.5 109.731 3.24 110.051 0L112.061 2.2C123.901 14.39 133.081 29.74 133.671 46.1C134.841 81.17 108.771 111.2 73.891 114.98L73.871 114.96ZM10.551 19.33L9.621 21.1C5.061 30.3 2.951 40.51 3.471 50.77C4.781 85.75 34.151 113.08 69.141 111.85C70.591 111.79 72.071 111.69 73.511 111.54C106.621 107.96 131.361 79.46 130.241 46.18C129.761 32.91 122.361 19.44 114.281 8.95L112.171 6.5L113.141 9.57C116.561 20.98 114.641 29.61 110.451 38.21C108.251 42.7 106.181 46.99 105.211 51.47C104.791 54.26 104.551 57.08 104.521 59.9C105.321 82.49 88.831 103.18 66.371 105.54C65.391 105.64 64.391 105.71 63.391 105.76C39.571 106.59 19.581 87.98 18.691 64.17C18.661 61.49 18.771 58.81 19.041 56.15C19.351 53.31 19.451 50.45 19.341 47.6C19.011 43.61 17.361 39.83 15.601 35.83C15.221 34.98 14.841 34.15 14.451 33.31C12.771 29.72 11.041 26.01 10.851 21.34L10.551 19.34V19.33Z" fill="#c9a84c"/>
+        <path d="M117.511 45.61C116.911 45.61 116.381 45.26 116.131 44.72C115.801 43.96 116.141 43.08 116.901 42.74C116.901 42.74 116.921 42.74 116.931 42.73C127.261 38.09 127.421 32.42 127.421 32.35C127.401 31.52 128.061 30.83 128.891 30.81C129.721 30.81 130.401 31.45 130.441 32.28C130.441 32.59 130.441 39.94 118.161 45.47C117.971 45.56 117.761 45.6 117.551 45.61H117.521H117.511Z" fill="#c9a84c"/>
+        <path d="M117.151 58.45C116.321 58.45 115.641 57.79 115.631 56.95C115.631 56.22 116.151 55.58 116.871 55.45C127.361 53.49 130.321 45.52 130.441 45.19C130.721 44.4 131.581 43.99 132.361 44.26C133.151 44.54 133.561 45.4 133.291 46.18C133.151 46.59 129.691 56.12 117.431 58.42H117.151V58.44V58.45Z" fill="#c9a84c"/>
+        <path d="M116.231 71.59C115.401 71.59 114.721 70.91 114.721 70.08C114.721 69.25 115.401 68.57 116.231 68.57C127.501 68.47 129.401 58.99 129.481 58.55C129.631 57.73 130.421 57.19 131.241 57.34C132.061 57.49 132.601 58.28 132.451 59.1C132.451 59.22 129.981 71.44 116.261 71.58H116.231V71.59Z" fill="#c9a84c"/>
+        <path d="M10.751 47.59C10.421 47.59 10.101 47.48 9.831 47.28C2.051 41.3 1.661 34.81 1.651 34.51C1.651 33.68 2.321 33 3.151 33C3.931 33 4.581 33.58 4.661 34.35C4.661 34.59 5.091 39.8 11.671 44.86C12.331 45.37 12.461 46.31 11.951 46.98C11.661 47.35 11.221 47.57 10.751 47.57V47.59Z" fill="#c9a84c"/>
+        <path d="M9.021 56.05C8.811 56.05 8.601 56.01 8.411 55.92C-.289 52.03.291 44.62.321 44.3C.441 43.47 1.201 42.9 2.021 43.02C2.791 43.13 3.351 43.8 3.321 44.57C3.321 44.83 2.981 50.16 9.631 53.15C10.391 53.49 10.741 54.38 10.401 55.14C10.161 55.69 9.611 56.04 9.011 56.04" fill="#c9a84c"/>
+        <path d="M7.461 65.51C7.371 65.51 7.271 65.51 7.181 65.51C.701 64.3.181 54.78.181 54.39C.101 53.56.701 52.82 1.531 52.74C2.361 52.66 3.101 53.26 3.181 54.09C3.181 54.15 3.181 54.21 3.181 54.27C3.181 54.34 3.641 61.8 7.711 62.54C8.531 62.69 9.071 63.47 8.931 64.29C8.801 65.01 8.171 65.53 7.441 65.53H7.461V65.51Z" fill="#c9a84c"/>
+        <path d="M112.791 85.2H112.441C111.611 85.14 110.981 84.42 111.041 83.59C111.101 82.84 111.691 82.25 112.441 82.19C123.531 82.33 125.111 74.21 125.211 73.88C125.391 73.07 126.201 72.56 127.021 72.74C127.771 72.91 128.271 73.62 128.181 74.39C128.181 74.49 126.201 85.21 112.781 85.21L112.791 85.2Z" fill="#c9a84c"/>
+        <path d="M54.691 94.68L54.421 94.63L54.161 94.57L53.891 94.51L53.631 94.43C52.181 93.97 50.891 93.12 49.901 91.96C48.811 90.68 47.981 89.2 47.471 87.6C46.871 85.78 46.551 83.87 46.521 81.96C46.481 79.83 46.721 77.7 47.251 75.64C47.731 73.71 48.471 71.86 49.431 70.12C50.281 68.57 51.361 67.15 52.621 65.91C53.731 64.82 55.031 63.96 56.471 63.36C57.771 62.82 59.181 62.63 60.571 62.81L60.831 62.85L61.101 62.91L61.361 62.97L61.621 63.04C63.071 63.48 64.371 64.33 65.371 65.47C66.481 66.74 67.321 68.23 67.841 69.84C68.451 71.67 68.781 73.58 68.811 75.52C68.861 77.67 68.611 79.82 68.071 81.91C67.581 83.85 66.841 85.71 65.861 87.46C65.011 89.01 63.941 90.43 62.671 91.67C61.551 92.75 60.241 93.6 58.811 94.18C57.511 94.71 56.101 94.88 54.711 94.69M61.041 59.43C59.271 59.2 57.481 59.42 55.821 60.06C54.021 60.75 52.381 61.78 50.981 63.1C49.401 64.56 48.051 66.26 46.991 68.14C45.791 70.22 44.891 72.45 44.321 74.77C43.681 77.27 43.421 79.86 43.521 82.44C43.601 84.79 44.051 87.1 44.841 89.31C45.541 91.29 46.631 93.1 48.031 94.66C49.321 96.09 50.981 97.16 52.821 97.74L53.181 97.84L53.551 97.94L53.911 98.01L54.281 98.07C56.041 98.32 57.831 98.13 59.501 97.52C61.311 96.85 62.971 95.84 64.381 94.53C65.981 93.07 67.351 91.37 68.431 89.49C69.651 87.4 70.561 85.15 71.151 82.8C71.811 80.27 72.091 77.67 72.001 75.06C71.911 72.69 71.451 70.35 70.641 68.12C69.921 66.13 68.821 64.31 67.381 62.76C66.061 61.33 64.381 60.29 62.521 59.73L62.161 59.63L61.791 59.54L61.421 59.47L61.051 59.41" fill="#c9a84c"/>
+        <path d="M71.091 54.7C70.551 54.63 70.001 54.54 69.431 54.44C68.861 54.34 68.301 54.23 67.711 54.1C67.131 53.97 66.541 53.84 65.941 53.68C65.341 53.52 64.731 53.36 64.111 53.19C62.361 52.68 60.631 52.09 58.941 51.4C57.631 50.87 56.351 50.26 55.121 49.58C54.231 49.09 53.371 48.54 52.561 47.94C52.051 47.57 51.581 47.14 51.161 46.67L50.671 46.08L51.371 45.84C51.731 45.72 52.101 45.63 52.481 45.58C53.011 45.5 53.541 45.45 54.081 45.43H56.191C56.971 45.43 57.791 45.54 58.761 45.67C59.301 45.74 59.851 45.82 60.411 45.92C60.971 46.02 61.541 46.13 62.121 46.26C62.691 46.39 63.291 46.52 63.881 46.67C64.471 46.82 65.091 46.98 65.701 47.15C67.471 47.65 69.201 48.25 70.901 48.94C72.221 49.47 73.521 50.09 74.771 50.77C75.681 51.26 76.551 51.82 77.371 52.44C77.891 52.82 78.371 53.25 78.801 53.73L79.291 54.33L78.581 54.58C78.211 54.69 77.831 54.78 77.451 54.84C76.901 54.92 76.361 54.97 75.811 54.99H73.671C72.871 54.99 72.011 54.87 71.071 54.74M59.031 42.33C57.841 42.17 56.641 42.07 55.441 42.04C54.291 42 53.141 42.08 52.001 42.26C51.041 42.39 50.111 42.72 49.291 43.23C48.551 43.7 48.021 44.43 47.811 45.27C47.541 46.56 47.901 47.9 48.791 48.87C49.881 50.16 51.201 51.24 52.671 52.06C54.371 53.07 56.151 53.95 57.991 54.69C59.731 55.39 61.501 56.01 63.301 56.53C63.941 56.71 64.581 56.89 65.211 57.04C65.841 57.19 66.461 57.35 67.081 57.48C67.691 57.61 68.321 57.74 68.921 57.85C69.531 57.96 70.131 58.05 70.721 58.13L71.921 58.27L73.081 58.37C73.461 58.37 73.821 58.42 74.181 58.43C74.541 58.43 74.891 58.43 75.231 58.43C76.161 58.43 77.081 58.36 78.001 58.21C78.721 58.1 79.431 57.89 80.101 57.59C80.641 57.35 81.131 57.01 81.531 56.58C81.901 56.18 82.161 55.69 82.291 55.17C82.561 53.86 82.181 52.5 81.271 51.52C80.131 50.24 78.781 49.16 77.281 48.33C75.551 47.32 73.741 46.44 71.881 45.7C70.001 44.95 68.141 44.33 66.541 43.86L65.611 43.62C65.161 43.5 64.581 43.36 63.911 43.2C63.241 43.04 62.471 42.89 61.651 42.74C60.831 42.59 59.941 42.44 59.041 42.32" fill="#c9a84c"/>
+      </svg>
+    </g>
+  `;
+}
+
+/* ══ RENDER ════════════════════════════════════════════════════ */
+function renderAll(){renderDealer();renderSeats();renderDealerMenu();}
+
+function renderDealer(){
+  const dc=document.getElementById('dealer-cards');
+  dc.innerHTML='';
+  dealer.hand.forEach(c=>dc.appendChild(mkCard(c,'lg')));
+  const ds=document.getElementById('dealer-score');
+  if(dealer.hand.length){
+    const vis=dealer.hand.filter(c=>!c.hidden);
+    if(dealer.revealed){const fv=hv(dealer.hand);ds.textContent=fv+(fv>21?' — Bust':'');}
+    else ds.textContent=hv(vis)+' + ?';
+  }else ds.textContent='';
+  const dtb=document.getElementById('dealer-turn-btns');
+  dtb.className='dealer-turn-btns'+(phase==='dealer_turn'?' show':'');
+}
+
+function renderSeats(){
+  players.forEach((p,i)=>{
+    const sc=document.getElementById('sc-'+i);
+    const ss=document.getElementById('ss-'+i);
+    const st=document.getElementById('st-'+i);
+    const sa=document.getElementById('sa-'+i);
+    const seat=document.getElementById('seat-'+i);
+    const ca=document.getElementById('chips-'+i);
+    if(!sc)return;
+    sc.innerHTML='';sa.innerHTML='';
+    if(p.hand){
+      if(p.hand2){
+        sc.appendChild(mkGroup(p.hand,'H1',p.activeHand===1));
+        sc.appendChild(mkGroup(p.hand2,'H2',p.activeHand===2));
+      }else{
+        p.hand.forEach(c=>sc.appendChild(mkCard(c,'md')));
+      }
+    }
+    const ah=p.activeHand===2&&p.hand2?p.hand2:p.hand;
+    if(ah){const v=hv(ah);ss.textContent=v||'';ss.className='seat-score'+(v>21?' bust':v===21?' bj':'');}
+    else{ss.textContent='';ss.className='seat-score';}
+    // Render chips: 1 chip base, 2 if doubled or split
+    if(ca){
+      ca.innerHTML='';
+      if(p.hand){
+        const count=(p.doubled||p.hasSplit)?2:1;
+        for(let c=0;c<count;c++) ca.appendChild(mkChip());
+      }
+    }
+    const tm={waiting:['tag-waiting','Waiting'],playing:['tag-playing','Playing'],split_playing:['tag-playing','Split'],standing:['tag-standing','Standing'],busted:['tag-busted','Bust'],blackjack:['tag-blackjack','Blackjack']};
+    const[tc,tl]=tm[p.status]||['tag-waiting',''];
+    st.className='seat-tag '+tc;st.textContent=tl;
+    seat.className='seat'+(i===cur&&phase==='playing'?' active-turn':p.status==='busted'?' busted':p.status==='standing'?' standing':p.status==='blackjack'?' blackjack':'');
+    if(i===cur&&phase==='playing'){
+      const btns=[{l:'Hit',c:'hit',f:'doHit()'},{l:'Stand',c:'stand',f:'doStand()'}];
+      if(canDbl(p))btns.push({l:'Double',c:'double',f:'doDouble()'});
+      if(canSplit(p))btns.push({l:'Split',c:'split',f:'doSplit()'});
+      btns.forEach(b=>{const btn=document.createElement('button');btn.className='abtn '+b.c;btn.textContent=b.l;btn.setAttribute('onclick',b.f);sa.appendChild(btn);});
+    }
+  });
+}
+
+function renderDealerMenu(){
+  document.getElementById('dmi-deal-lbl').textContent=phase==='lobby'?'Deal':'Re-deal';
+  document.getElementById('dmi-res').style.opacity=(phase==='done'||phase==='dealer_turn')?'1':'0.4';
+}
+
+/* ══ CARD ELEMENT ══════════════════════════════════════════════ */
+function mkCard(c,size){
+  const el=document.createElement('div');
+  el.className='card '+size+(c.hidden?' face-down':RED.has(c.s)?' red-card':'');
+  if(c.hidden)return el;
+  el.innerHTML=`<div class="corner tl"><span class="rnk">${c.r}</span><span class="sym">${c.s}</span></div><div class="corner br"><span class="rnk">${c.r}</span><span class="sym">${c.s}</span></div>`;
+  const pips=PIPS[c.r];
+  if(pips===null){
+    // Court / Ace
+    if(c.r==='A'){
+      const big=document.createElement('div');
+      big.className='court-big';
+      big.style.fontSize=size==='lg'?'92px':size==='md'?'74px':'58px';
+      big.textContent=c.s;el.appendChild(big);
+    }else{
+      const bg=document.createElement('div');bg.className='court-suit-bg';bg.textContent=c.s;el.appendChild(bg);
+      const big=document.createElement('div');big.className='court-big';big.textContent=c.r;el.appendChild(big);
+    }
+  }else{
+    const fs=size==='lg'?36:size==='md'?28:22;
+    const g=document.createElement('div');
+    g.style.cssText=`position:absolute;left:28px;right:28px;top:36px;bottom:36px;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:repeat(7,1fr);`;
+    pips.forEach(([row,col])=>{
+      const p=document.createElement('div');p.className='pip';p.textContent=c.s;
+      p.style.cssText=`grid-row:${row+1};grid-column:${col+1};display:flex;align-items:center;justify-content:center;font-size:${fs}px${row>3?';transform:rotate(180deg)':''}`;
+      g.appendChild(p);
+    });
+    el.appendChild(g);
+  }
+  return el;
+}
+function mkGroup(hand,label,active){
+  const g=document.createElement('div');g.className='split-group';if(!active)g.style.opacity='.4';
+  const l=document.createElement('div');l.className='split-lbl';l.textContent=label;
+  const r=document.createElement('div');r.className='split-group-cards';
+  hand.forEach(c=>r.appendChild(mkCard(c,'sm')));
+  g.appendChild(l);g.appendChild(r);return g;
+}
+
+/* ══ CHIP ELEMENT ═════════════════════════════════════════════ */
+const CHIP_SVG=`<svg viewBox="0 0 134 116" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M73.871 114.96C72.351 115.12 70.801 115.22 69.261 115.28C32.381 116.56 1.421 87.76.051 50.89C-.479 36.3 3.091 24.41 11.621 12.34L12.341 11.33C12.341 12.6 12.401 14.27 12.571 15.87C13.261 22.45 15.141 26.55 17.321 31.31C17.781 32.31 18.251 33.35 18.741 34.44C20.531 38.52 22.381 42.73 22.731 47.31C22.871 50.33 22.771 53.36 22.441 56.37C22.191 58.91 22.071 61.46 22.091 64.01C22.911 85.93 41.321 103.05 63.241 102.28C64.151 102.28 65.081 102.19 65.981 102.09C86.671 99.93 101.831 80.78 101.101 59.97C101.151 56.87 101.411 53.77 101.901 50.71C102.951 45.78 105.211 41.13 107.401 36.67C111.251 28.78 112.141 21.03 110.401 9.71C109.851 6.5 109.731 3.24 110.051 0L112.061 2.2C123.901 14.39 133.081 29.74 133.671 46.1C134.841 81.17 108.771 111.2 73.891 114.98L73.871 114.96ZM10.551 19.33L9.621 21.1C5.061 30.3 2.951 40.51 3.471 50.77C4.781 85.75 34.151 113.08 69.141 111.85C70.591 111.79 72.071 111.69 73.511 111.54C106.621 107.96 131.361 79.46 130.241 46.18C129.761 32.91 122.361 19.44 114.281 8.95L112.171 6.5L113.141 9.57C116.561 20.98 114.641 29.61 110.451 38.21C108.251 42.7 106.181 46.99 105.211 51.47C104.791 54.26 104.551 57.08 104.521 59.9C105.321 82.49 88.831 103.18 66.371 105.54C65.391 105.64 64.391 105.71 63.391 105.76C39.571 106.59 19.581 87.98 18.691 64.17C18.661 61.49 18.771 58.81 19.041 56.15C19.351 53.31 19.451 50.45 19.341 47.6C19.011 43.61 17.361 39.83 15.601 35.83C15.221 34.98 14.841 34.15 14.451 33.31C12.771 29.72 11.041 26.01 10.851 21.34L10.551 19.34V19.33Z" fill="rgba(30,10,0,0.7)"/><path d="M117.511 45.61C116.911 45.61 116.381 45.26 116.131 44.72C115.801 43.96 116.141 43.08 116.901 42.74C116.901 42.74 116.921 42.74 116.931 42.73C127.261 38.09 127.421 32.42 127.421 32.35C127.401 31.52 128.061 30.83 128.891 30.81C129.721 30.81 130.401 31.45 130.441 32.28C130.441 32.59 130.441 39.94 118.161 45.47C117.971 45.56 117.761 45.6 117.551 45.61H117.521H117.511Z" fill="rgba(30,10,0,0.7)"/><path d="M117.151 58.45C116.321 58.45 115.641 57.79 115.631 56.95C115.631 56.22 116.151 55.58 116.871 55.45C127.361 53.49 130.321 45.52 130.441 45.19C130.721 44.4 131.581 43.99 132.361 44.26C133.151 44.54 133.561 45.4 133.291 46.18C133.151 46.59 129.691 56.12 117.431 58.42H117.151V58.44V58.45Z" fill="rgba(30,10,0,0.7)"/><path d="M116.231 71.59C115.401 71.59 114.721 70.91 114.721 70.08C114.721 69.25 115.401 68.57 116.231 68.57C127.501 68.47 129.401 58.99 129.481 58.55C129.631 57.73 130.421 57.19 131.241 57.34C132.061 57.49 132.601 58.28 132.451 59.1C132.451 59.22 129.981 71.44 116.261 71.58H116.231V71.59Z" fill="rgba(30,10,0,0.7)"/><path d="M10.751 47.59C10.421 47.59 10.101 47.48 9.831 47.28C2.051 41.3 1.661 34.81 1.651 34.51C1.651 33.68 2.321 33 3.151 33C3.931 33 4.581 33.58 4.661 34.35C4.661 34.59 5.091 39.8 11.671 44.86C12.331 45.37 12.461 46.31 11.951 46.98C11.661 47.35 11.221 47.57 10.751 47.57V47.59Z" fill="rgba(30,10,0,0.7)"/><path d="M9.021 56.05C8.811 56.05 8.601 56.01 8.411 55.92C-.289 52.03.291 44.62.321 44.3C.441 43.47 1.201 42.9 2.021 43.02C2.791 43.13 3.351 43.8 3.321 44.57C3.321 44.83 2.981 50.16 9.631 53.15C10.391 53.49 10.741 54.38 10.401 55.14C10.161 55.69 9.611 56.04 9.011 56.04" fill="rgba(30,10,0,0.7)"/><path d="M7.461 65.51C7.371 65.51 7.271 65.51 7.181 65.51C.701 64.3.181 54.78.181 54.39C.101 53.56.701 52.82 1.531 52.74C2.361 52.66 3.101 53.26 3.181 54.09C3.181 54.15 3.181 54.21 3.181 54.27C3.181 54.34 3.641 61.8 7.711 62.54C8.531 62.69 9.071 63.47 8.931 64.29C8.801 65.01 8.171 65.53 7.441 65.53H7.461V65.51Z" fill="rgba(30,10,0,0.7)"/><path d="M112.791 85.2H112.441C111.611 85.14 110.981 84.42 111.041 83.59C111.101 82.84 111.691 82.25 112.441 82.19C123.531 82.33 125.111 74.21 125.211 73.88C125.391 73.07 126.201 72.56 127.021 72.74C127.771 72.91 128.271 73.62 128.181 74.39C128.181 74.49 126.201 85.21 112.781 85.21L112.791 85.2Z" fill="rgba(30,10,0,0.7)"/><path d="M54.691 94.68L54.421 94.63L54.161 94.57L53.891 94.51L53.631 94.43C52.181 93.97 50.891 93.12 49.901 91.96C48.811 90.68 47.981 89.2 47.471 87.6C46.871 85.78 46.551 83.87 46.521 81.96C46.481 79.83 46.721 77.7 47.251 75.64C47.731 73.71 48.471 71.86 49.431 70.12C50.281 68.57 51.361 67.15 52.621 65.91C53.731 64.82 55.031 63.96 56.471 63.36C57.771 62.82 59.181 62.63 60.571 62.81L60.831 62.85L61.101 62.91L61.361 62.97L61.621 63.04C63.071 63.48 64.371 64.33 65.371 65.47C66.481 66.74 67.321 68.23 67.841 69.84C68.451 71.67 68.781 73.58 68.811 75.52C68.861 77.67 68.611 79.82 68.071 81.91C67.581 83.85 66.841 85.71 65.861 87.46C65.011 89.01 63.941 90.43 62.671 91.67C61.551 92.75 60.241 93.6 58.811 94.18C57.511 94.71 56.101 94.88 54.711 94.69M61.041 59.43C59.271 59.2 57.481 59.42 55.821 60.06C54.021 60.75 52.381 61.78 50.981 63.1C49.401 64.56 48.051 66.26 46.991 68.14C45.791 70.22 44.891 72.45 44.321 74.77C43.681 77.27 43.421 79.86 43.521 82.44C43.601 84.79 44.051 87.1 44.841 89.31C45.541 91.29 46.631 93.1 48.031 94.66C49.321 96.09 50.981 97.16 52.821 97.74L53.181 97.84L53.551 97.94L53.911 98.01L54.281 98.07C56.041 98.32 57.831 98.13 59.501 97.52C61.311 96.85 62.971 95.84 64.381 94.53C65.981 93.07 67.351 91.37 68.431 89.49C69.651 87.4 70.561 85.15 71.151 82.8C71.811 80.27 72.091 77.67 72.001 75.06C71.911 72.69 71.451 70.35 70.641 68.12C69.921 66.13 68.821 64.31 67.381 62.76C66.061 61.33 64.381 60.29 62.521 59.73L62.161 59.63L61.791 59.54L61.421 59.47L61.051 59.41" fill="rgba(30,10,0,0.7)"/><path d="M71.091 54.7C70.551 54.63 70.001 54.54 69.431 54.44C68.861 54.34 68.301 54.23 67.711 54.1C67.131 53.97 66.541 53.84 65.941 53.68C65.341 53.52 64.731 53.36 64.111 53.19C62.361 52.68 60.631 52.09 58.941 51.4C57.631 50.87 56.351 50.26 55.121 49.58C54.231 49.09 53.371 48.54 52.561 47.94C52.051 47.57 51.581 47.14 51.161 46.67L50.671 46.08L51.371 45.84C51.731 45.72 52.101 45.63 52.481 45.58C53.011 45.5 53.541 45.45 54.081 45.43H56.191C56.971 45.43 57.791 45.54 58.761 45.67C59.301 45.74 59.851 45.82 60.411 45.92C60.971 46.02 61.541 46.13 62.121 46.26C62.691 46.39 63.291 46.52 63.881 46.67C64.471 46.82 65.091 46.98 65.701 47.15C67.471 47.65 69.201 48.25 70.901 48.94C72.221 49.47 73.521 50.09 74.771 50.77C75.681 51.26 76.551 51.82 77.371 52.44C77.891 52.82 78.371 53.25 78.801 53.73L79.291 54.33L78.581 54.58C78.211 54.69 77.831 54.78 77.451 54.84C76.901 54.92 76.361 54.97 75.811 54.99H73.671C72.871 54.99 72.011 54.87 71.071 54.74M59.031 42.33C57.841 42.17 56.641 42.07 55.441 42.04C54.291 42 53.141 42.08 52.001 42.26C51.041 42.39 50.111 42.72 49.291 43.23C48.551 43.7 48.021 44.43 47.811 45.27C47.541 46.56 47.901 47.9 48.791 48.87C49.881 50.16 51.201 51.24 52.671 52.06C54.371 53.07 56.151 53.95 57.991 54.69C59.731 55.39 61.501 56.01 63.301 56.53C63.941 56.71 64.581 56.89 65.211 57.04C65.841 57.19 66.461 57.35 67.081 57.48C67.691 57.61 68.321 57.74 68.921 57.85C69.531 57.96 70.131 58.05 70.721 58.13L71.921 58.27L73.081 58.37C73.461 58.37 73.821 58.42 74.181 58.43C74.541 58.43 74.891 58.43 75.231 58.43C76.161 58.43 77.081 58.36 78.001 58.21C78.721 58.1 79.431 57.89 80.101 57.59C80.641 57.35 81.131 57.01 81.531 56.58C81.901 56.18 82.161 55.69 82.291 55.17C82.561 53.86 82.181 52.5 81.271 51.52C80.131 50.24 78.781 49.16 77.281 48.33C75.551 47.32 73.741 46.44 71.881 45.7C70.001 44.95 68.141 44.33 66.541 43.86L65.611 43.62C65.161 43.5 64.581 43.36 63.911 43.2C63.241 43.04 62.471 42.89 61.651 42.74C60.831 42.59 59.941 42.44 59.041 42.32" fill="rgba(30,10,0,0.7)"/></svg>`;
+function mkChip(){
+  const el=document.createElement('div');el.className='chip';el.innerHTML=CHIP_SVG;return el;
+}
+
+/* ══ DEALER MENU ═══════════════════════════════════════════════ */
+function toggleMenu(){
+  document.getElementById('dmenu-btn').classList.toggle('open');
+  document.getElementById('dmenu-dd').classList.toggle('open');
+  renderDealerMenu();
+}
+function closeMenu(){document.getElementById('dmenu-btn').classList.remove('open');document.getElementById('dmenu-dd').classList.remove('open');}
+document.addEventListener('click',e=>{if(!document.getElementById('dmenu-wrap').contains(e.target))closeMenu();});
+
+/* ══ TOAST ═════════════════════════════════════════════════════ */
+function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(t._t);t._t=setTimeout(()=>t.classList.remove('show'),2800);}
+
+/* ══ INIT & RESIZE ═════════════════════════════════════════════ */
+document.querySelectorAll('#setup-modal input').forEach(f=>f.addEventListener('keydown',e=>{if(e.key==='Enter')startSession();}));
+let resizeTimer;
+window.addEventListener('resize',()=>{
+  clearTimeout(resizeTimer);
+  resizeTimer=setTimeout(()=>{
+    if(players.length){buildSeats();drawTableSVG();renderAll();}
+  },100);
+});
+</script>
+</body>
+</html>
